@@ -3,8 +3,8 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::Span,
-    widgets::{Block, Borders, Paragraph},
     widgets::Wrap,
+    widgets::{Block, Borders, Paragraph},
 };
 
 fn main() -> color_eyre::Result<()> {
@@ -35,16 +35,18 @@ fn render(frame: &mut Frame) {
         .split(frame.area());
 
     let text_span = Span::styled(
-        "This is text that will be yellow",
-        Style::default().fg(Color::Yellow),
+        "file",
+        Style::default().fg(Color::White),
     );
     let left_block = Paragraph::new(text_span).wrap(Wrap { trim: (true) }).block(
-        Block::default().title("Steps").borders(Borders::ALL),
+        Block::default()
+            .border_style(Style::new().dark_gray())
+            .title("Steps")
+            .borders(Borders::ALL),
     );
     frame.render_widget(left_block, chunks[0]);
 
-    let right_content =
-        Block::default().title("binscout").borders(Borders::ALL);
+    let right_content = Block::default().border_style(Style::new().dark_gray()).title("binscout").borders(Borders::ALL);
 
     frame.render_widget(right_content, chunks[1]);
 }
