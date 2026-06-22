@@ -1,6 +1,8 @@
+use clap::builder::Str;
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
+use ratatui::macros::constraint;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout},
@@ -30,6 +32,17 @@ fn main() -> color_eyre::Result<()> {
                 KeyCode::Tab => {
                     app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
                 }
+
+                KeyCode::Up => {
+                    if app.selected == 0 {
+                        app.selected = NUMBERS_OF_STEPS - 1;
+                    } else {
+                        app.selected -= 1;
+                    }
+                }
+                KeyCode::Down => {
+                    app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                }
                 KeyCode::Esc => break,
                 _ => {}
             }
@@ -41,10 +54,22 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn render(frame: &mut Frame, app: &App) {
+    let vertical_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(95), Constraint::Percentage(5)])
+        .split(frame.area());
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
-        .split(frame.area());
+        .split(vertical_chunks[0]);
+
+    let help_display_array = vec!["espace valid", "↵ launch", "tab switch", "q exit"];
+
+    let help_text = help_display_array.join("       ");
+
+    let help = Paragraph::new(help_text);
+    frame.render_widget(help, vertical_chunks[1]);
 
     let items = vec![
         "file",
@@ -70,12 +95,14 @@ fn render(frame: &mut Frame, app: &App) {
 
         text.push(Line::from(Span::styled(format!("- {}", item), style)));
     }
-    let left_block = Paragraph::new(text).wrap(Wrap { trim: (true) }).block(
+
+    let left_block = Paragraph::new(text).wrap(Wrap { trim: true }).block(
         Block::default()
             .border_style(Style::new().dark_gray())
             .title("Steps")
             .borders(Borders::ALL),
     );
+
     frame.render_widget(left_block, chunks[0]);
 
     let right_content = Block::default()
