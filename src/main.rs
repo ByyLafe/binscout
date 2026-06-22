@@ -1,10 +1,8 @@
-use clap::builder::Str;
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
-use ratatui::macros::constraint;
 use ratatui::{
-    DefaultTerminal, Frame,
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::Line,
@@ -32,7 +30,6 @@ fn main() -> color_eyre::Result<()> {
                 KeyCode::Tab => {
                     app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
                 }
-
                 KeyCode::Up => {
                     if app.selected == 0 {
                         app.selected = NUMBERS_OF_STEPS - 1;
@@ -43,7 +40,7 @@ fn main() -> color_eyre::Result<()> {
                 KeyCode::Down => {
                     app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
                 }
-                KeyCode::Esc => break,
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
                 _ => {}
             }
         }
@@ -71,7 +68,7 @@ fn render(frame: &mut Frame, app: &App) {
     let help = Paragraph::new(help_text);
     frame.render_widget(help, vertical_chunks[1]);
 
-    let items = vec![
+    let items = [
         "file",
         "hashes",
         "binwalk",
@@ -92,7 +89,6 @@ fn render(frame: &mut Frame, app: &App) {
         } else {
             Style::default().fg(Color::White)
         };
-
         text.push(Line::from(Span::styled(format!("- {}", item), style)));
     }
 
@@ -105,10 +101,85 @@ fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(left_block, chunks[0]);
 
-    let right_content = Block::default()
-        .border_style(Style::new().dark_gray())
-        .title("binscout")
-        .borders(Borders::ALL);
+    let content_file_tab = [
+        "- Search for signatures of known files",
+        "- Automatically extract detected files",
+        "- Recursively analyze the extracted files",
+        "- Analyze entropy to identify compressed areas",
+        "- Display a graph of entropy",
+        "- Search for a specific pattern",
+    ];
+
+    let content_file = Paragraph::new(content_file_tab.join("\n"));
+
+    let choose = match app.selected {
+        0 => vec![
+            "- Search for signatures of known files",
+            "- Automatically extract detected files",
+            "- Recursively analyze the extracted files",
+            "- Analyze entropy to identify compressed areas",
+            "- Display a graph of entropy",
+            "- Search for a specific pattern",
+        ],
+        1 => vec![
+            "- Calculate MD5 hash",
+            "- Calculate SHA1 hash",
+            "- Calculate SHA256 hash",
+            "- Compare hashes with known databases",
+        ],
+        2 => vec![
+            "- Run binwalk analysis",
+            "- Detect embedded files",
+            "- Extract firmware content",
+        ],
+        3 => vec![
+            "- Calculate file entropy",
+            "- Detect packed or encrypted areas",
+            "- Display entropy score",
+        ],
+        4 => vec![
+            "- Display PE sections",
+            "- Show section permissions",
+            "- Detect suspicious sections",
+        ],
+        5 => vec![
+            "- Check binary mitigations",
+            "- NX",
+            "- ASLR",
+            "- PIE",
+            "- RELRO",
+        ],
+        6 => vec![
+            "- Extract strings",
+            "- Run FLOSS",
+            "- Detect obfuscated strings",
+        ],
+        7 => vec![
+            "- Run YARA rules",
+            "- Detect malware patterns",
+            "- Display matching rules",
+        ],
+        8 => vec![
+            "- Run capa analysis",
+            "- Detect capabilities",
+            "- Display ATT&CK techniques",
+        ],
+        9 => vec![
+            "- Generate final report",
+            "- Export results",
+            "- Summarize findings",
+        ],
+        _ => vec!["Unknown step"],
+    };
+
+    let right_content = Paragraph::new(choose.join("\n"));
+
+    let right_content = right_content.block(
+        Block::default()
+            .border_style(Style::new().dark_gray())
+            .title("binscout")
+            .borders(Borders::ALL),
+    );
 
     frame.render_widget(right_content, chunks[1]);
 }
