@@ -101,73 +101,78 @@ fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(left_block, chunks[0]);
 
-    let content_file_tab = [
-        "- Search for signatures of known files",
-        "- Automatically extract detected files",
-        "- Recursively analyze the extracted files",
-        "- Analyze entropy to identify compressed areas",
-        "- Display a graph of entropy",
-        "- Search for a specific pattern",
-    ];
-
-    let content_file = Paragraph::new(content_file_tab.join("\n"));
-
     let choose = match app.selected {
         0 => vec![
-            "- Search for signatures of known files",
-            "- Automatically extract detected files",
-            "- Recursively analyze the extracted files",
-            "- Analyze entropy to identify compressed areas",
-            "- Display a graph of entropy",
-            "- Search for a specific pattern",
+            "- Show MIME type instead of textual description",
+            "- Look inside compressed files",
+            "- List all possible matches (useful to detect a polyglot file)",
+            "- Follow symbolic links",
+            "- Suggest the appropriate file extension",
         ],
         1 => vec![
-            "- Calculate MD5 hash",
-            "- Calculate SHA1 hash",
-            "- Calculate SHA256 hash",
-            "- Compare hashes with known databases",
+            "- sha256",
+            "- md5",
+            "- sha1",
+            "- Fuzzy hash (ssdeep) — find near-identical variants",
+            "- Imphash — signature based on the import table",
+            "- Check online reputation (VirusTotal)"
         ],
         2 => vec![
-            "- Run binwalk analysis",
-            "- Detect embedded files",
-            "- Extract firmware content",
+            "- Automatically extract detected files",
+            "- Recursively scan extracted files",
+            "- Search for known file signatures",
+            "- Search for executable signatures and machine code",
+            "- Run an entropy analysis to spot compressed/encrypted regions",
+            "- Display an entropy graph",
+            "- Attempt to decompress detected data",
+            "- Search for a specific pattern",
+            "- Only show a given signature type",
+            "- Exclude certain signature types",
         ],
         3 => vec![
-            "- Calculate file entropy",
-            "- Detect packed or encrypted areas",
-            "- Display entropy score",
+            "- Entropy per section",
+            "- Overall file entropy",
+            "- Sliding window size to locate a high-entropy region",
+            "- Show an ASCII graph along the file",
+            "- Custom alert threshold"
         ],
         4 => vec![
-            "- Display PE sections",
-            "- Show section permissions",
-            "- Detect suspicious sections",
+            "- General header (architecture, type, entry point)",
+            "- List sections with sizes and permissions",
+            "- Program headers / segments table | ELF Only",
+            "- Detailed import/export table",
+            "- Show virtual addresses instead of file offsets"
         ],
         5 => vec![
-            "- Check binary mitigations",
-            "- NX",
-            "- ASLR",
-            "- PIE",
-            "- RELRO",
+            "- NX — non-executable stack",
+            "- PIE — randomized base address",
+            "- RELRO (partial/full)",
+            "- Stack canary",
+            "- Fortify Source",
+            "- Flag calls to dangerous functions (strcpy, gets, sprintf...)",
         ],
         6 => vec![
-            "- Extract strings",
-            "- Run FLOSS",
-            "- Detect obfuscated strings",
+            "- Classic strings",
+            "- Include UTF-16 encoded strings",
+            "- Minimum strings length",
+            "- Decoded in-memory strings (auto-decryption)"
         ],
         7 => vec![
-            "- Run YARA rules",
-            "- Detect malware patterns",
-            "- Display matching rules",
+            "- Default community rules",
+            "- Custom rules",
+            "- Show matched strings, not just the rule name",
+            "- Also scan files extracted by binwalk"
         ],
         8 => vec![
-            "- Run capa analysis",
-            "- Detect capabilities",
-            "- Display ATT&CK techniques",
+            "- Capabilities with confidence score",
+            "- Show the exact location each detection",
+            "- Filter by category, (network, persistance, etc...)",
         ],
         9 => vec![
-            "- Generate final report",
-            "- Export results",
-            "- Summarize findings",
+            "- Markdown export",
+            "- JSON Export",
+            "- Include raw tool output as an appendix",
+            "- Mention steps that weren't run"
         ],
         _ => vec!["Unknown step"],
     };
