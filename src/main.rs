@@ -1,3 +1,6 @@
+use crossterm::event;
+use crossterm::event::Event;
+use crossterm::event::KeyCode;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout},
@@ -7,6 +10,8 @@ use ratatui::{
     widgets::Wrap,
     widgets::{Block, Borders, Paragraph},
 };
+
+static NUMBERS_OF_STEPS: usize = 10;
 struct App {
     selected: usize,
 }
@@ -14,43 +19,57 @@ struct App {
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    let original_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = ratatui::restore();
-        original_hook(panic_info);
-    }));
-    ratatui::run(app).map_err(|e| color_eyre::eyre::eyre!(e))?;
+    let mut terminal = ratatui::init();
+    let mut app = App { selected: 0 };
+
+    loop {
+        terminal.draw(|f| render(f, &app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Tab => {
+                    app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                }
+                KeyCode::Esc => break,
+                _ => {}
+            }
+        }
+    }
+
+    ratatui::restore();
     Ok(())
 }
 
-fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
-    loop {
-        terminal.draw(render)?;
-        if crossterm::event::read()?.is_key_press() {
-            break Ok(());
-        }
-    }
-}
-
-fn render(frame: &mut Frame) {
+fn render(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(frame.area());
 
-    let text = vec![
-        Line::from(Span::styled("- file", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- hashes", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- binwalk", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- entropie", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- sections", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- mitigations", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- strings / floss", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- yara", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- capa", Style::default().fg(Color::White))),
-        Line::from(Span::styled("- final report", Style::default().fg(Color::White))),
+    let items = vec![
+        "file",
+        "hashes",
+        "binwalk",
+        "entropie",
+        "sections",
+        "mitigations",
+        "strings / floss",
+        "yara",
+        "capa",
+        "final report",
     ];
 
+    let mut text = Vec::new();
+
+    for (index, item) in items.iter().enumerate() {
+        let style = if app.selected == index {
+            Style::default().fg(Color::Black).bg(Color::White)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        text.push(Line::from(Span::styled(format!("- {}", item), style)));
+    }
     let left_block = Paragraph::new(text).wrap(Wrap { trim: (true) }).block(
         Block::default()
             .border_style(Style::new().dark_gray())
