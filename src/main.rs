@@ -2,6 +2,7 @@ use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
 use ratatui::prelude::Stylize;
+use ratatui::style::Styled;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -61,7 +62,7 @@ fn main() -> color_eyre::Result<()> {
                 KeyCode::Enter => {
                     app.focus = match app.focus {
                         Focus::Steps => Focus::Options,
-                        Focus::Options => Focus::Steps
+                        Focus::Options => Focus::Steps,
                     };
                 }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
@@ -203,9 +204,15 @@ fn render(frame: &mut Frame, app: &App) {
         _ => vec!["Unknown step"],
     };
 
-    let right_content = Paragraph::new(choose.join("\n"));
+    let style_options = if app.focus == Focus::Options {
+        Style::default().fg(Color::Black).bg(Color::White)
+    } else {
+        Style::default().fg(Color::White)
+    };
 
-    let right_content = right_content.block(
+    let right_content_paragraph = Paragraph::new(choose.join("\n")).style(style_options);
+
+    let right_content = right_content_paragraph.block(
         Block::default()
             .border_style(Style::new().dark_gray())
             .title("binscout")
