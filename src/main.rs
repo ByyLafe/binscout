@@ -204,14 +204,20 @@ fn render(frame: &mut Frame, app: &App) {
         _ => vec!["Unknown step"],
     };
 
-    let style_options = if app.focus == Focus::Options {
-        Style::default().fg(Color::Black).bg(Color::White)
-    } else {
-        Style::default().fg(Color::White)
-    };
+    let mut text_right = Vec::new();
 
-    let right_content_paragraph = Paragraph::new(choose.join("\n")).style(style_options);
-
+    for (index, item) in choose.iter().enumerate() {
+        let style_options = if app.selected == index && app.focus == Focus::Options {
+            Style::default().fg(Color::Black).bg(Color::White)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        text_right.push(Line::from(Span::styled(
+            format!("- {}", item),
+            style_options,
+        )));
+    }
+    let right_content_paragraph = Paragraph::new(text_right);
     let right_content = right_content_paragraph.block(
         Block::default()
             .border_style(Style::new().dark_gray())
