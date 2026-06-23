@@ -1,6 +1,7 @@
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
+use ratatui::prelude::Stylize;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -10,21 +11,37 @@ use ratatui::{
     widgets::Wrap,
     widgets::{Block, Borders, Paragraph},
 };
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+#[derive(PartialEq)]
+pub enum Focus {
+    Steps,
+    Options,
+}
+
+pub struct App {
+    pub focus: Focus,
+    pub checked: HashMap<String, HashSet<String>>,
+    pub should_quit: bool,
+    pub selected: usize,
+}
 
 static NUMBERS_OF_STEPS: usize = 10;
-struct App {
-    selected: usize,
-}
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     let mut terminal = ratatui::init();
-    let mut app = App { selected: 0 };
+    let mut app = App {
+        selected: 0,
+        focus: Focus::Steps,
+        checked: HashMap::new(),
+        should_quit: false,
+    };
 
     loop {
         terminal.draw(|f| render(f, &app))?;
-
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Tab => {
@@ -39,6 +56,13 @@ fn main() -> color_eyre::Result<()> {
                 }
                 KeyCode::Down => {
                     app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                }
+                // Uniplemented yet - TODO
+                KeyCode::Enter => {
+                    app.focus = match app.focus {
+                        Focus::Steps => Focus::Options,
+                        Focus::Options => Focus::Steps
+                    };
                 }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
                 _ => {}
@@ -61,18 +85,20 @@ fn render(frame: &mut Frame, app: &App) {
         .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(vertical_chunks[0]);
 
-    let help_display_array = vec!["espace valid", "↵ launch", "tab switch", "q exit"];
+    let help_display_array = ["espace valid", "↵ launch", "tab switch", "q exit"];
 
     let help_text = help_display_array.join("       ");
 
-    let help = Paragraph::new(help_text);
+    let help = Paragraph::new(help_text)
+        .fg(Color::LightBlue)
+        .bg(Color::Black);
     frame.render_widget(help, vertical_chunks[1]);
 
     let items = [
         "file",
         "hashes",
         "binwalk",
-        "entropie",
+        "entropy",
         "sections",
         "mitigations",
         "strings / floss",
@@ -84,7 +110,7 @@ fn render(frame: &mut Frame, app: &App) {
     let mut text = Vec::new();
 
     for (index, item) in items.iter().enumerate() {
-        let style = if app.selected == index {
+        let style = if app.selected == index && app.focus == Focus::Steps {
             Style::default().fg(Color::Black).bg(Color::White)
         } else {
             Style::default().fg(Color::White)
@@ -115,7 +141,7 @@ fn render(frame: &mut Frame, app: &App) {
             "- sha1",
             "- Fuzzy hash (ssdeep) — find near-identical variants",
             "- Imphash — signature based on the import table",
-            "- Check online reputation (VirusTotal)"
+            "- Check online reputation (VirusTotal)",
         ],
         2 => vec![
             "- Automatically extract detected files",
@@ -134,14 +160,14 @@ fn render(frame: &mut Frame, app: &App) {
             "- Overall file entropy",
             "- Sliding window size to locate a high-entropy region",
             "- Show an ASCII graph along the file",
-            "- Custom alert threshold"
+            "- Custom alert threshold",
         ],
         4 => vec![
             "- General header (architecture, type, entry point)",
             "- List sections with sizes and permissions",
             "- Program headers / segments table | ELF Only",
             "- Detailed import/export table",
-            "- Show virtual addresses instead of file offsets"
+            "- Show virtual addresses instead of file offsets",
         ],
         5 => vec![
             "- NX — non-executable stack",
@@ -155,13 +181,13 @@ fn render(frame: &mut Frame, app: &App) {
             "- Classic strings",
             "- Include UTF-16 encoded strings",
             "- Minimum strings length",
-            "- Decoded in-memory strings (auto-decryption)"
+            "- Decoded in-memory strings (auto-decryption)",
         ],
         7 => vec![
             "- Default community rules",
             "- Custom rules",
             "- Show matched strings, not just the rule name",
-            "- Also scan files extracted by binwalk"
+            "- Also scan files extracted by binwalk",
         ],
         8 => vec![
             "- Capabilities with confidence score",
@@ -172,7 +198,7 @@ fn render(frame: &mut Frame, app: &App) {
             "- Markdown export",
             "- JSON Export",
             "- Include raw tool output as an appendix",
-            "- Mention steps that weren't run"
+            "- Mention steps that weren't run",
         ],
         _ => vec!["Unknown step"],
     };
