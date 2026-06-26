@@ -68,13 +68,16 @@ fn main() -> color_eyre::Result<()> {
                 KeyCode::Down => {
                     if app.focus == Focus::Steps {
                         app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                        app.selected_right = 1;
                     } else if app.focus == Focus::Options {
                         app.selected_right = (app.selected_right + 1) % NUMBERS_OF_STEPS;
+
                         println!("{:?}", app.selected_right);
                     }
                 }
                 // Uniplemented yet - TODO
                 KeyCode::Enter => {
+                    app.selected_right = 0;
                     app.focus = match app.focus {
                         Focus::Steps => Focus::Options,
                         Focus::Options => Focus::Steps,
