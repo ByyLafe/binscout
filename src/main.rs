@@ -2,7 +2,6 @@ use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
 use ratatui::prelude::Stylize;
-use ratatui::style::Styled;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -14,6 +13,7 @@ use ratatui::{
 };
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ffi::NulError;
 
 #[derive(PartialEq)]
 pub enum Focus {
@@ -26,6 +26,7 @@ pub struct App {
     pub checked: HashMap<String, HashSet<String>>,
     pub should_quit: bool,
     pub selected: usize,
+    pub selected_right: usize,
 }
 
 static NUMBERS_OF_STEPS: usize = 10;
@@ -39,6 +40,7 @@ fn main() -> color_eyre::Result<()> {
         focus: Focus::Steps,
         checked: HashMap::new(),
         should_quit: false,
+        selected_right: 1,
     };
 
     loop {
@@ -49,14 +51,28 @@ fn main() -> color_eyre::Result<()> {
                     app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
                 }
                 KeyCode::Up => {
-                    if app.selected == 0 {
-                        app.selected = NUMBERS_OF_STEPS - 1;
-                    } else {
-                        app.selected -= 1;
+                    if app.focus == Focus::Steps {
+                        if app.selected == 0 {
+                            app.selected = NUMBERS_OF_STEPS - 1;
+                        } else {
+                            app.selected -= 1;
+                        }
+                    } else if app.focus == Focus::Options {
+                        if app.selected_right == 0 {
+                            app.selected_right = NUMBERS_OF_STEPS - 1;
+                        } else {
+                            app.selected_right -= 1;
+                            println!("{:?}", app.selected_right);
+                        }
                     }
                 }
                 KeyCode::Down => {
-                    app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                    if app.focus == Focus::Steps {
+                        app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+                    } else if app.focus == Focus::Options {
+                        app.selected_right = (app.selected_right + 1) % NUMBERS_OF_STEPS;
+                        println!("{:?}", app.selected_right);
+                    }
                 }
                 // Uniplemented yet - TODO
                 KeyCode::Enter => {
@@ -64,6 +80,10 @@ fn main() -> color_eyre::Result<()> {
                         Focus::Steps => Focus::Options,
                         Focus::Options => Focus::Steps,
                     };
+
+                    if app.focus == Focus::Steps {
+                        // Validate
+                    }
                 }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
                 _ => {}
@@ -130,76 +150,76 @@ fn render(frame: &mut Frame, app: &App) {
 
     let choose = match app.selected {
         0 => vec![
-            "- Show MIME type instead of textual description",
-            "- Look inside compressed files",
-            "- List all possible matches (useful to detect a polyglot file)",
-            "- Follow symbolic links",
-            "- Suggest the appropriate file extension",
+            " Show MIME type instead of textual description",
+            " Look inside compressed files",
+            " List all possible matches (useful to detect a polyglot file)",
+            " Follow symbolic links",
+            " Suggest the appropriate file extension",
         ],
         1 => vec![
-            "- sha256",
-            "- md5",
-            "- sha1",
-            "- Fuzzy hash (ssdeep) — find near-identical variants",
-            "- Imphash — signature based on the import table",
-            "- Check online reputation (VirusTotal)",
+            " sha256",
+            " md5",
+            " sha1",
+            " Fuzzy hash (ssdeep) — find nearidentical variants",
+            " Imphash — signature based on the import table",
+            " Check online reputation (VirusTotal)",
         ],
         2 => vec![
-            "- Automatically extract detected files",
-            "- Recursively scan extracted files",
-            "- Search for known file signatures",
-            "- Search for executable signatures and machine code",
-            "- Run an entropy analysis to spot compressed/encrypted regions",
-            "- Display an entropy graph",
-            "- Attempt to decompress detected data",
-            "- Search for a specific pattern",
-            "- Only show a given signature type",
-            "- Exclude certain signature types",
+            " Automatically extract detected files",
+            " Recursively scan extracted files",
+            " Search for known file signatures",
+            " Search for executable signatures and machine code",
+            " Run an entropy analysis to spot compressed/encrypted regions",
+            " Display an entropy graph",
+            " Attempt to decompress detected data",
+            " Search for a specific pattern",
+            " Only show a given signature type",
+            " Exclude certain signature types",
         ],
         3 => vec![
-            "- Entropy per section",
-            "- Overall file entropy",
-            "- Sliding window size to locate a high-entropy region",
-            "- Show an ASCII graph along the file",
-            "- Custom alert threshold",
+            " Entropy per section",
+            " Overall file entropy",
+            " Sliding window size to locate a highentropy region",
+            " Show an ASCII graph along the file",
+            " Custom alert threshold",
         ],
         4 => vec![
-            "- General header (architecture, type, entry point)",
-            "- List sections with sizes and permissions",
-            "- Program headers / segments table | ELF Only",
-            "- Detailed import/export table",
-            "- Show virtual addresses instead of file offsets",
+            " General header (architecture, type, entry point)",
+            " List sections with sizes and permissions",
+            " Program headers / segments table | ELF Only",
+            " Detailed import/export table",
+            " Show virtual addresses instead of file offsets",
         ],
         5 => vec![
-            "- NX — non-executable stack",
-            "- PIE — randomized base address",
-            "- RELRO (partial/full)",
-            "- Stack canary",
-            "- Fortify Source",
-            "- Flag calls to dangerous functions (strcpy, gets, sprintf...)",
+            " NX — non-executable stack",
+            " PIE — randomized base address",
+            " RELRO (partial/full)",
+            " Stack canary",
+            " Fortify Source",
+            " Flag calls to dangerous functions (strcpy, gets, sprintf...)",
         ],
         6 => vec![
-            "- Classic strings",
-            "- Include UTF-16 encoded strings",
-            "- Minimum strings length",
-            "- Decoded in-memory strings (auto-decryption)",
+            " Classic strings",
+            " Include UTF-16 encoded strings",
+            " Minimum strings length",
+            " Decoded in-memory strings (auto-decryption)",
         ],
         7 => vec![
-            "- Default community rules",
-            "- Custom rules",
-            "- Show matched strings, not just the rule name",
-            "- Also scan files extracted by binwalk",
+            " Default community rules",
+            " Custom rules",
+            " Show matched strings, not just the rule name",
+            " Also scan files extracted by binwalk",
         ],
         8 => vec![
-            "- Capabilities with confidence score",
-            "- Show the exact location each detection",
-            "- Filter by category, (network, persistance, etc...)",
+            "Capabilities with confidence score",
+            "Show the exact location each detection",
+            "Filter by category, (network, persistance, etc...)",
         ],
         9 => vec![
-            "- Markdown export",
-            "- JSON Export",
-            "- Include raw tool output as an appendix",
-            "- Mention steps that weren't run",
+            "Markdown export",
+            "JSON Export",
+            "Include raw tool output as an appendix",
+            "Mention steps that weren't run",
         ],
         _ => vec!["Unknown step"],
     };
