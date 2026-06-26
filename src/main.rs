@@ -13,7 +13,6 @@ use ratatui::{
 };
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::ffi::NulError;
 
 #[derive(PartialEq)]
 pub enum Focus {
@@ -227,7 +226,7 @@ fn render(frame: &mut Frame, app: &App) {
     let mut text_right = Vec::new();
 
     for (index, item) in choose.iter().enumerate() {
-        let style_options = if app.selected == index && app.focus == Focus::Options {
+        let style_options = if app.selected_right == index && app.focus == Focus::Options {
             Style::default().fg(Color::Black).bg(Color::White)
         } else {
             Style::default().fg(Color::White)
