@@ -75,7 +75,6 @@ fn main() -> color_eyre::Result<()> {
                         println!("{:?}", app.selected_right);
                     }
                 }
-                // Uniplemented yet - TODO
                 KeyCode::Enter => {
                     app.selected_right = 0;
                     app.focus = match app.focus {
