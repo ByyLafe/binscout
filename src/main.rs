@@ -70,21 +70,28 @@ fn main() -> color_eyre::Result<()> {
                         app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
                         app.selected_right = 1;
                     } else if app.focus == Focus::Options {
-                        app.selected_right = (app.selected_right + 1) % calculate_number_of_options(&app);
+                        app.selected_right =
+                            (app.selected_right + 1) % calculate_number_of_options(&app);
 
                         println!("{:?}", app.selected_right);
                     }
                 }
                 KeyCode::Enter => {
                     app.selected_right = 0;
+                    if app.focus == Focus::Steps {
+                        // Validate
+                    }
                     app.focus = match app.focus {
                         Focus::Steps => Focus::Options,
                         Focus::Options => Focus::Steps,
                     };
-
-                    if app.focus == Focus::Steps {
-                        // Validate
-                    }
+                }
+                KeyCode::Left => {
+                    app.focus = Focus::Steps
+                }
+                KeyCode::Right => {
+                    app.selected_right = 0;
+                    app.focus = Focus::Options
                 }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
                 _ => {}
@@ -248,7 +255,6 @@ fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(right_content, chunks[1]);
 }
-
 
 // !! WARNING !! Don't forget to match these steps when changing display Options
 fn calculate_number_of_options(app: &App) -> usize {
