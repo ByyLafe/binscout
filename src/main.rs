@@ -249,6 +249,8 @@ fn render(frame: &mut Frame, app: &App) {
     frame.render_widget(right_content, chunks[1]);
 }
 
+
+// !! WARNING !! Don't forget to match these steps when changing display Options
 fn calculate_number_of_options(app: &App) -> usize {
     let choose = match app.selected {
         0 => 5,
