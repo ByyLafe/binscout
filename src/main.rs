@@ -252,7 +252,7 @@ fn render(frame: &mut Frame, app: &App) {
 
 // !! WARNING !! Don't forget to match these steps when changing display Options
 fn calculate_number_of_options(app: &App) -> usize {
-    let choose = match app.selected {
+    match app.selected {
         0 => 5,
         1 => 6,
         2 => 10,
@@ -264,6 +264,5 @@ fn calculate_number_of_options(app: &App) -> usize {
         8 => 3,
         9 => 4,
         _ => 1,
-    };
-    choose
+    }
 }
