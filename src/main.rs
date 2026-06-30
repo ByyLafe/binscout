@@ -11,8 +11,10 @@ use ratatui::{
     widgets::Wrap,
     widgets::{Block, Borders, Paragraph},
 };
-use std::collections::HashMap;
-use std::collections::HashSet;
+
+//Debug
+
+ use std::io::Write;
 
 #[derive(PartialEq)]
 pub enum Focus {
@@ -22,7 +24,7 @@ pub enum Focus {
 
 pub struct App {
     pub focus: Focus,
-    pub checked: HashMap<String, HashSet<String>>,
+    pub checked: Vec<Vec<bool>>,
     pub should_quit: bool,
     pub selected: usize,
     pub selected_right: usize,
@@ -37,7 +39,18 @@ fn main() -> color_eyre::Result<()> {
     let mut app = App {
         selected: 0,
         focus: Focus::Steps,
-        checked: HashMap::new(),
+        checked: vec![
+            vec![false; 5],
+            vec![false; 6],
+            vec![false; 10],
+            vec![false; 5],
+            vec![false; 5],
+            vec![false; 6],
+            vec![false; 4],
+            vec![false; 4],
+            vec![false; 3],
+            vec![false; 4],
+        ],
         should_quit: false,
         selected_right: 1,
     };
@@ -83,11 +96,17 @@ fn main() -> color_eyre::Result<()> {
                     }
                     Focus::Options => {
                         // Validate
+                        app.checked[app.selected][app.selected_right] =
+                            !app.checked[app.selected][app.selected_right];
+                        let mut f = std::fs::OpenOptions::new()
+                            .append(true)
+                            .create(true)
+                            .open("debug.log")
+                            .unwrap();
+                        writeln!(f, "{:?}", app.checked).unwrap();
                     }
-                }
-                KeyCode::Left => {
-                    app.focus = Focus::Steps
-                }
+                },
+                KeyCode::Left => app.focus = Focus::Steps,
                 KeyCode::Right => {
                     app.selected_right = 0;
                     app.focus = Focus::Options
