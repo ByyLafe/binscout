@@ -251,6 +251,95 @@ fn render(frame: &mut Frame, app: &App) {
         _ => vec!["Unknown step"],
     };
 
+    let flags = match app.selected {
+        0 => vec![
+        "-i",
+        "-z",
+        "-k",
+        "-L",
+        // "--extension", // need value
+    ],
+
+    1 => vec![
+        // "sha256",     // Rust
+        // "md5",        // Rust
+        // "sha1",       // Rust
+        // "ssdeep",     // need value
+        // "imphash",    // need value
+        // "virustotal", // Need API key + need value
+    ],
+
+    2 => vec![
+        "-e",
+        "-M",
+        "-B",
+        "-A",
+        "-E",
+        "-J",
+        "-z",
+        // "-R",         // need value
+        // "-y",         // need value
+        // "-x",         // need value
+    ],
+
+    3 => vec![
+        "-E",
+        "-J",
+        // "-F",         // need value
+        // "-H",         // need value
+        // "-L",         // need value
+    ],
+
+    4 => vec![
+        "-h",
+        "-S",
+        "-l",
+        "-d",
+        // "virtual addresses"
+    ],
+    5 => vec![
+        // checksec --file={bin} --format=json
+        //
+        // "NX",
+        // "PIE",
+        // "RELRO",
+        // "canary",
+        // "Fortify",    // need value
+        // "dangerous functions",
+    ],
+    6 => vec![
+        "-a",            // need value
+        "-el",           // need value
+        // "-n",         //need value
+        // "decoded strings", // floss required
+    ],
+
+    7 => vec![
+        // "community rules",  // need value
+        // "custom rules",     // need value
+        "-s",
+        "-r",
+    ],
+
+    8 => vec![
+        // "capabilities",  //
+        // "-v",            //
+        // "-t",            // need value
+    ],
+
+    // final report
+
+    9 => vec![
+        // "Markdown export",  // Rust
+        // "JSON export",      // Rust
+        // "raw output",       // Rust
+        // "mention skipped",  // Rust
+    ],
+
+    _ => vec![],
+};
+
+
     let mut text_right = Vec::new();
 
     for (index, item) in choose.iter().enumerate() {
