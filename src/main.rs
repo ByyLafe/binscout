@@ -133,7 +133,7 @@ fn render(frame: &mut Frame, app: &App) {
         .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(vertical_chunks[0]);
 
-    let help_display_array = ["espace valid", "↵ launch", "tab switch", "q exit"];
+    let help_display_array = ["space launch", "↵ select", "tab switch", "q exit"];
 
     let help_text = help_display_array.join("       ");
 
