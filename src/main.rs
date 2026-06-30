@@ -14,7 +14,7 @@ use ratatui::{
 
 //Debug
 
- use std::io::Write;
+use std::io::Write;
 
 #[derive(PartialEq)]
 pub enum Focus {
@@ -39,6 +39,7 @@ fn main() -> color_eyre::Result<()> {
     let mut app = App {
         selected: 0,
         focus: Focus::Steps,
+        // !! WARNING !! Don't forget to match these steps when changing display Options
         checked: vec![
             vec![false; 5],
             vec![false; 6],
@@ -258,8 +259,14 @@ fn render(frame: &mut Frame, app: &App) {
         } else {
             Style::default().fg(Color::White)
         };
+
+        let symbol_checked = if app.checked[app.selected][index] {
+            "▣"
+        } else {
+            "▢"
+        };
         text_right.push(Line::from(Span::styled(
-            format!("- {}", item),
+            format!("{} {}", symbol_checked, item),
             style_options,
         )));
     }
