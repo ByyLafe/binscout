@@ -23,3 +23,8 @@ Thumbs.db
 /doc/
 
 config.local.*
+# BinScout run artifacts
+binscout-report-*
+_*.extracted/
+_*.container/
+robot-factory
