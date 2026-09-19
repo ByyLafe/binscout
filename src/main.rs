@@ -1,388 +1,282 @@
-use crossterm::event;
-use crossterm::event::Event;
-use crossterm::event::KeyCode;
-use ratatui::prelude::Stylize;
-use ratatui::{
-    Frame,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::Line,
-    text::Span,
-    widgets::Wrap,
-    widgets::{Block, Borders, Paragraph},
-};
+mod analysis;
+mod app;
+mod catalog;
+mod config;
+mod doctor;
+mod engine;
+mod hex;
+mod picker;
+mod report;
+mod triage;
+mod ui;
 
-//Debug
+use app::{App, PendingAction};
+use catalog::{STEP_REPORT, STEPS};
+use clap::Parser;
+use crossterm::event::{self, Event, KeyEventKind};
+use engine::StepRequest;
+use engine::runner::run_step;
+use std::path::PathBuf;
+use std::time::Duration;
 
-use std::io::Write;
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Cli {
+    target: Option<PathBuf>,
 
-#[derive(PartialEq)]
-pub enum Focus {
-    Steps,
-    Options,
+    #[arg(long)]
+    run_all: bool,
+
+    #[arg(long, short = 'p')]
+    preset: Option<String>,
+
+    #[arg(long, default_value = "md")]
+    report: String,
+
+    #[arg(long, short = 'o')]
+    out: Option<PathBuf>,
+
+    #[arg(long)]
+    load: Option<PathBuf>,
+
+    #[arg(long)]
+    triage: Option<PathBuf>,
+
+    #[arg(long)]
+    online: bool,
+
+    #[arg(long)]
+    doctor: bool,
+
+    #[arg(long)]
+    list_presets: bool,
 }
 
-pub struct App {
-    pub focus: Focus,
-    pub checked: Vec<Vec<bool>>,
-    pub should_quit: bool,
-    pub selected: usize,
-    pub selected_right: usize,
+// println! panics on a closed pipe (`binscout --triage dir | head`).
+fn out(text: &str) {
+    use std::io::Write;
+    let _ = std::io::stdout().write_all(text.as_bytes());
 }
-
-static NUMBERS_OF_STEPS: usize = 10;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
+    let cli = Cli::parse();
 
-    let mut terminal = ratatui::init();
-    let mut app = App {
-        selected: 0,
-        focus: Focus::Steps,
-        // !! WARNING !! Don't forget to match these steps when changing display Options
-        checked: vec![
-            vec![false; 5],
-            vec![false; 6],
-            vec![false; 10],
-            vec![false; 5],
-            vec![false; 5],
-            vec![false; 6],
-            vec![false; 4],
-            vec![false; 4],
-            vec![false; 3],
-            vec![false; 4],
-        ],
-        should_quit: false,
-        selected_right: 1,
-    };
+    if cli.doctor {
+        let doctor = doctor::Doctor::run();
+        out(&doctor.report());
+        std::process::exit(if doctor.missing().is_empty() { 0 } else { 1 });
+    }
 
-    loop {
-        terminal.draw(|f| render(f, &app))?;
-        if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Tab => {
-                    app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
+    if cli.list_presets {
+        for p in config::get().presets() {
+            out(&format!("{}: {}\n", p.name, p.description));
+            for (s, step) in STEPS.iter().enumerate() {
+                let opts: Vec<String> = step
+                    .options
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| p.checked[s][*i])
+                    .map(|(i, o)| match &p.values[s][i] {
+                        Some(v) => format!("{} = {v}", o.label),
+                        None => o.label.to_string(),
+                    })
+                    .collect();
+                if !opts.is_empty() {
+                    out(&format!("  {:<16} {}\n", step.name, opts.join(" | ")));
                 }
-                KeyCode::Up => {
-                    if app.focus == Focus::Steps {
-                        if app.selected == 0 {
-                            app.selected = NUMBERS_OF_STEPS - 1;
-                        } else {
-                            app.selected -= 1;
-                        }
-                    } else if app.focus == Focus::Options {
-                        if app.selected_right == 0 {
-                            app.selected_right = calculate_number_of_options(&app) - 1;
-                        } else {
-                            app.selected_right -= 1;
-                            println!("{:?}", app.selected_right);
-                        }
-                    }
-                }
-                KeyCode::Down => {
-                    if app.focus == Focus::Steps {
-                        app.selected = (app.selected + 1) % NUMBERS_OF_STEPS;
-                        app.selected_right = 1;
-                    } else if app.focus == Focus::Options {
-                        app.selected_right =
-                            (app.selected_right + 1) % calculate_number_of_options(&app);
-
-                        println!("{:?}", app.selected_right);
-                    }
-                }
-                KeyCode::Enter => match app.focus {
-                    Focus::Steps => {
-                        app.selected_right = 0;
-                        app.focus = Focus::Options;
-                    }
-                    Focus::Options => {
-                        // Validate
-                        app.checked[app.selected][app.selected_right] =
-                            !app.checked[app.selected][app.selected_right];
-                        let mut f = std::fs::OpenOptions::new()
-                            .append(true)
-                            .create(true)
-                            .open("debug.log")
-                            .unwrap();
-                        writeln!(f, "{:?}", app.checked).unwrap();
-                    }
-                },
-                KeyCode::Left => app.focus = Focus::Steps,
-                KeyCode::Right => {
-                    app.selected_right = 0;
-                    app.focus = Focus::Options
-                }
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => break,
-                _ => {}
             }
+            out("\n");
+        }
+        if let Some(p) = config::config_path() {
+            out(&format!("config file: {}\n", p.display()));
+        }
+        return Ok(());
+    }
+
+    if let Some(dir) = &cli.triage {
+        if !dir.is_dir() {
+            eprintln!("error: {} is not a directory", dir.display());
+            std::process::exit(2);
+        }
+        let rows = triage::scan(dir, cli.online, 1000);
+        out(&triage::table(&rows));
+        return Ok(());
+    }
+
+    if cli.run_all {
+        let Some(target) = cli.target.clone().filter(|t| t.is_file()) else {
+            eprintln!("error: --run-all needs a file to analyze");
+            std::process::exit(2);
+        };
+        return headless(target, &cli);
+    }
+
+    let mut triage_rows = None;
+    if let Some(t) = &cli.target {
+        if t.is_dir() {
+            eprintln!("triaging {}...", t.display());
+            triage_rows = Some((t.clone(), triage::scan(t, cli.online, 200)));
+        } else if !t.is_file() {
+            eprintln!("error: {} is not a readable file", t.display());
+            std::process::exit(2);
         }
     }
 
+    let mut app = App::new(cli.target.clone().filter(|t| t.is_file()));
+    if let Some(name) = &cli.preset {
+        match config::get().preset(name) {
+            Some(p) => app.apply_preset(&p),
+            None => {
+                eprintln!("error: unknown preset \"{name}\" (see --list-presets)");
+                std::process::exit(2);
+            }
+        }
+    }
+    if let Some(path) = &cli.load {
+        match report::SavedReport::load(path) {
+            Ok(saved) => {
+                let (target, results) = saved.into_results();
+                app = app.with_results(target, results);
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(2);
+            }
+        }
+    }
+    if let Some((dir, rows)) = triage_rows {
+        app = app.with_triage(dir, rows);
+    }
+
+    let mut terminal = ratatui::init();
+    while !app.should_quit {
+        terminal.draw(|f| ui::render(f, &app))?;
+        if event::poll(Duration::from_millis(80))?
+            && let Event::Key(key) = event::read()?
+            && (key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat)
+        {
+            app.handle_key(key);
+        }
+        app.poll_worker();
+
+        // sudo prompts and editors need the real terminal: leave the TUI, run, come back.
+        if let Some(action) = app.pending.take() {
+            ratatui::restore();
+            match action {
+                PendingAction::Shell(cmd) => {
+                    run_shell(&cmd, true);
+                    terminal = ratatui::init();
+                    app.after_install();
+                }
+                PendingAction::Editor(path) => {
+                    let editor = config::get().editor();
+                    run_shell(
+                        &format!(
+                            "{editor} '{}'",
+                            path.display().to_string().replace('\'', "'\\''")
+                        ),
+                        false,
+                    );
+                    terminal = ratatui::init();
+                    app.status = format!("closed {editor}");
+                }
+            }
+        }
+    }
     ratatui::restore();
     Ok(())
 }
 
-fn render(frame: &mut Frame, app: &App) {
-    let vertical_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(95), Constraint::Percentage(5)])
-        .split(frame.area());
-
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
-        .split(vertical_chunks[0]);
-
-    let help_display_array = ["space launch", "↵ select", "tab switch", "q exit"];
-
-    let help_text = help_display_array.join("       ");
-
-    let help = Paragraph::new(help_text)
-        .fg(Color::LightBlue)
-        .bg(Color::Black);
-    frame.render_widget(help, vertical_chunks[1]);
-
-    let items = [
-        "file",
-        "hashes",
-        "binwalk",
-        "entropy",
-        "sections",
-        "mitigations",
-        "strings / floss",
-        "yara",
-        "capa",
-        "final report",
-    ];
-
-    let mut text = Vec::new();
-
-    for (index, item) in items.iter().enumerate() {
-        let style = if app.selected == index && app.focus == Focus::Steps {
-            Style::default().fg(Color::Black).bg(Color::White)
-        } else {
-            Style::default().fg(Color::White)
-        };
-        text.push(Line::from(Span::styled(format!("- {}", item), style)));
+fn run_shell(cmd: &str, wait_for_enter: bool) {
+    use std::io::{BufRead, Write};
+    println!("\n$ {cmd}\n");
+    let status = std::process::Command::new("sh").arg("-c").arg(cmd).status();
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => println!("\ncommand exited with {s}"),
+        Err(e) => println!("\ncould not run the command: {e}"),
     }
-
-    let left_block = Paragraph::new(text).wrap(Wrap { trim: true }).block(
-        Block::default()
-            .border_style(Style::new().dark_gray())
-            .title("Steps")
-            .borders(Borders::ALL),
-    );
-
-    frame.render_widget(left_block, chunks[0]);
-
-    let choose = match app.selected {
-        0 => vec![
-            " Show MIME type instead of textual description",
-            " Look inside compressed files",
-            " List all possible matches (useful to detect a polyglot file)",
-            " Follow symbolic links",
-            " Suggest the appropriate file extension",
-        ],
-        1 => vec![
-            " sha256",
-            " md5",
-            " sha1",
-            " Fuzzy hash (ssdeep) — find nearidentical variants",
-            " Imphash — signature based on the import table",
-            " Check online reputation (VirusTotal)",
-        ],
-        2 => vec![
-            " Automatically extract detected files",
-            " Recursively scan extracted files",
-            " Search for known file signatures",
-            " Search for executable signatures and machine code",
-            " Run an entropy analysis to spot compressed/encrypted regions",
-            " Display an entropy graph",
-            " Attempt to decompress detected data",
-            " Search for a specific pattern",
-            " Only show a given signature type",
-            " Exclude certain signature types",
-        ],
-        3 => vec![
-            " Entropy per section",
-            " Overall file entropy",
-            " Sliding window size to locate a highentropy region",
-            " Show an ASCII graph along the file",
-            " Custom alert threshold",
-        ],
-        4 => vec![
-            " General header (architecture, type, entry point)",
-            " List sections with sizes and permissions",
-            " Program headers / segments table | ELF Only",
-            " Detailed import/export table",
-            " Show virtual addresses instead of file offsets",
-        ],
-        5 => vec![
-            " NX — non-executable stack",
-            " PIE — randomized base address",
-            " RELRO (partial/full)",
-            " Stack canary",
-            " Fortify Source",
-            " Flag calls to dangerous functions (strcpy, gets, sprintf...)",
-        ],
-        6 => vec![
-            " Classic strings",
-            " Include UTF-16 encoded strings",
-            " Minimum strings length",
-            " Decoded in-memory strings (auto-decryption)",
-        ],
-        7 => vec![
-            " Default community rules",
-            " Custom rules",
-            " Show matched strings, not just the rule name",
-            " Also scan files extracted by binwalk",
-        ],
-        8 => vec![
-            "Capabilities with confidence score",
-            "Show the exact location each detection",
-            "Filter by category, (network, persistance, etc...)",
-        ],
-        9 => vec![
-            "Markdown export",
-            "JSON Export",
-            "Include raw tool output as an appendix",
-            "Mention steps that weren't run",
-        ],
-        _ => vec!["Unknown step"],
-    };
-
-    let flags = match app.selected {
-        0 => vec![
-        "-i",
-        "-z",
-        "-k",
-        "-L",
-        // "--extension", // need value
-    ],
-
-    1 => vec![
-        // "sha256",     // Rust
-        // "md5",        // Rust
-        // "sha1",       // Rust
-        // "ssdeep",     // need value
-        // "imphash",    // need value
-        // "virustotal", // Need API key + need value
-    ],
-
-    2 => vec![
-        "-e",
-        "-M",
-        "-B",
-        "-A",
-        "-E",
-        "-J",
-        "-z",
-        // "-R",         // need value
-        // "-y",         // need value
-        // "-x",         // need value
-    ],
-
-    3 => vec![
-        "-E",
-        "-J",
-        // "-F",         // need value
-        // "-H",         // need value
-        // "-L",         // need value
-    ],
-
-    4 => vec![
-        "-h",
-        "-S",
-        "-l",
-        "-d",
-        // "virtual addresses"
-    ],
-    5 => vec![
-        // checksec --file={bin} --format=json
-        //
-        // "NX",
-        // "PIE",
-        // "RELRO",
-        // "canary",
-        // "Fortify",    // need value
-        // "dangerous functions",
-    ],
-    6 => vec![
-        "-a",            // need value
-        "-el",           // need value
-        // "-n",         //need value
-        // "decoded strings", // floss required
-    ],
-
-    7 => vec![
-        // "community rules",  // need value
-        // "custom rules",     // need value
-        "-s",
-        "-r",
-    ],
-
-    8 => vec![
-        // "capabilities",  //
-        // "-v",            //
-        // "-t",            // need value
-    ],
-
-    // final report
-
-    9 => vec![
-        // "Markdown export",  // Rust
-        // "JSON export",      // Rust
-        // "raw output",       // Rust
-        // "mention skipped",  // Rust
-    ],
-
-    _ => vec![],
-};
-
-
-    let mut text_right = Vec::new();
-
-    for (index, item) in choose.iter().enumerate() {
-        let style_options = if app.selected_right == index && app.focus == Focus::Options {
-            Style::default().fg(Color::Black).bg(Color::White)
-        } else {
-            Style::default().fg(Color::White)
-        };
-
-        let symbol_checked = if app.checked[app.selected][index] {
-            "▣"
-        } else {
-            "▢"
-        };
-        text_right.push(Line::from(Span::styled(
-            format!("{} {}", symbol_checked, item),
-            style_options,
-        )));
+    if wait_for_enter {
+        print!("press Enter to return to BinScout...");
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stdin().lock().read_line(&mut String::new());
     }
-    let right_content_paragraph = Paragraph::new(text_right);
-    let right_content = right_content_paragraph.block(
-        Block::default()
-            .border_style(Style::new().dark_gray())
-            .title("binscout")
-            .borders(Borders::ALL),
-    );
-
-    frame.render_widget(right_content, chunks[1]);
 }
 
-// !! WARNING !! Don't forget to match these steps when changing display Options
-fn calculate_number_of_options(app: &App) -> usize {
-    match app.selected {
-        0 => 5,
-        1 => 6,
-        2 => 10,
-        3 => 5,
-        4 => 5,
-        5 => 6,
-        6 => 4,
-        7 => 4,
-        8 => 3,
-        9 => 4,
-        _ => 1,
+fn headless(target: PathBuf, cli: &Cli) -> color_eyre::Result<()> {
+    let target = std::fs::canonicalize(&target).unwrap_or(target);
+    let name = cli.preset.clone().unwrap_or_else(|| "quick".to_string());
+    let Some(preset) = config::get().preset(&name) else {
+        eprintln!("error: unknown preset \"{name}\" (see --list-presets)");
+        std::process::exit(2);
+    };
+    let out_dir = cli
+        .out
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    std::fs::create_dir_all(&out_dir)?;
+
+    let mut checked = preset.checked.clone();
+    let mut values: Vec<Vec<String>> = STEPS
+        .iter()
+        .enumerate()
+        .map(|(s, step)| {
+            step.options
+                .iter()
+                .enumerate()
+                .map(|(i, o)| {
+                    preset.values[s][i].clone().unwrap_or_else(|| match o.kind {
+                        catalog::OptionKind::Value { default, .. } => default.to_string(),
+                        catalog::OptionKind::Flag => String::new(),
+                    })
+                })
+                .collect()
+        })
+        .collect();
+
+    let formats: Vec<&str> = cli.report.split(',').map(str::trim).collect();
+    // The report format is a CLI concern; the preset must not override --report.
+    checked[STEP_REPORT][0] = formats.contains(&"md");
+    checked[STEP_REPORT][1] = formats.contains(&"json");
+    if !checked[STEP_REPORT][0] && !checked[STEP_REPORT][1] {
+        eprintln!("error: --report must contain md and/or json");
+        std::process::exit(2);
     }
+    values[STEP_REPORT].iter_mut().for_each(|v| v.clear());
+
+    let mut results: Vec<Option<engine::StepResult>> = vec![None; STEPS.len()];
+    let mut order: Vec<usize> = (0..STEPS.len())
+        .filter(|s| *s != STEP_REPORT && checked[*s].iter().any(|c| *c))
+        .collect();
+    order.push(STEP_REPORT);
+    eprintln!(
+        "binscout: {} with preset \"{}\" ({} step(s))",
+        target.display(),
+        preset.name,
+        order.len()
+    );
+    let mut failed = 0;
+    for step in order {
+        eprint!("  {:<28}", STEPS[step].title);
+        let result = run_step(StepRequest {
+            step,
+            target: target.clone(),
+            checked: checked[step].clone(),
+            values: values[step].clone(),
+            previous: results.clone(),
+            out_dir: out_dir.clone(),
+        });
+        eprintln!("{:?} ({} ms)", result.status, result.duration_ms);
+        if result.status == engine::Status::Failed {
+            failed += 1;
+        }
+        if step == STEP_REPORT {
+            for l in result.output.lines().filter(|l| l.starts_with("written: ")) {
+                println!("{}", l.trim_start_matches("written: "));
+            }
+        }
+        results[step] = Some(result);
+    }
+    std::process::exit(if failed > 0 { 1 } else { 0 });
 }
