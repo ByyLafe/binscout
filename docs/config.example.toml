@@ -1,0 +1,42 @@
+# BinScout configuration — copy to ~/.config/binscout/config.toml
+# (Linux) or ~/Library/Application Support/binscout/config.toml (macOS).
+# Every key is optional.
+
+# API keys (environment variables VT_API_KEY / MALWAREBAZAAR_API_KEY also work).
+vt_api_key = ""
+bazaar_api_key = ""          # free key: https://auth.abuse.ch/
+
+# Where the "Default community rules" YARA option looks.
+yara_rules = "~/.config/binscout/rules"
+
+# Editor used by `e` in the output pane ($VISUAL / $EDITOR otherwise).
+editor = "nvim"
+
+# Preset applied when BinScout starts (built-in: quick, full, online).
+default_preset = "quick"
+
+# Your own presets: step name -> option labels. A label matches an option by
+# case-insensitive prefix; "label=value" also sets the value of a value option.
+[presets.ctf]
+file = ["List all"]
+hashes = ["sha256", "md5"]
+packer = ["Known packer", "Compiler", "Packing heuristics"]
+sections = ["General header", "List sections", "Detailed import"]
+mitigations = ["NX", "PIE", "RELRO", "Stack canary", "Flag calls"]
+"strings / floss" = ["Classic", "Minimum strings length=8"]
+iocs = ["URLs", "IP addresses", "Domain names"]
+disasm = ["Disassemble around=256", "Intel", "Function list"]
+"final report" = ["Markdown", "Mention"]
+
+[presets.malware]
+hashes = ["sha256", "md5", "sha1", "Imphash", "Check MalwareBazaar"]
+packer = ["Known packer", "Compiler", "Packing heuristics"]
+binwalk = ["Search for known file signatures"]
+entropy = ["Entropy per section", "Overall", "Show an ASCII graph"]
+mitigations = ["Flag calls"]
+anti-analysis = ["Debugger", "VM", "Timing", "Process", "TLS", "Analysis tool"]
+"strings / floss" = ["Classic", "Include UTF-16", "Decoded"]
+iocs = ["URLs", "IP addresses", "Domain names", "Windows registry", "Base64", "Crypto"]
+yara = ["Default community rules", "Show matched strings"]
+capa = ["Capabilities summary"]
+"final report" = ["Markdown", "JSON", "Include raw", "Mention"]
